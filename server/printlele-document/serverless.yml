@@ -1,0 +1,149 @@
+service: printlele-document
+
+frameworkVersion: "v1"
+
+provider:
+  name: aws
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  runtime: nodejs6.10
+  environment:
+    docBucket: "${file(../config.${self:provider.stage}.json):env.docBucket}"
+    documentTable: "${file(../config.${self:provider.stage}.json):env.documentTable}"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescibeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:*"
+    - Effect: "Allow"
+      Action: "s3:*"
+      Resource: "arn:aws:s3:::${self:provider.environment.docBucket}/*"
+
+custom:
+  accountId: "${file(../config.${self:provider.stage}.json):accountId}"
+  userPoolId: "${file(../config.${self:provider.stage}.json):userPoolId}"
+  authorizerArn: "arn:aws:cognito-idp:${self:provider.region}:${self:custom.accountId}:userpool/${self:custom.userPoolId}"
+
+functions:
+  uploadDocument:
+    handler: uploadDocument.uploadDocument
+    events:
+      - http:
+          path: documents
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  documentList:
+    handler: documentList.documentList
+    events:
+      - http:
+          path: documents
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getDocument:
+    handler: getDocument.getDocument
+    events:
+      - http:
+          path: documents/{id}
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  deleteDocument:
+    handler: deleteDocument.deleteDocument
+    events:
+      - http:
+          path: documents/{id}
+          method: delete
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  clientLogs:
+    handler: clientLogs.clientLogs
+    memorySize: 128
+    events:
+      - http:
+          path: log
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+      
+  paytmChecksum:
+    handler: paytmChecksum.paytmChecksum
+    memorySize: 128
+    events:
+      - http:
+          path: paytmChecksum/{action}
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'POST,GET,OPTIONS'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+    PrintDocumentStorage:
+      Type: AWS::S3::Bucket
+      DeletionPolicy: Retain
+      Properties:
+        BucketName: '${self:provider.environment.docBucket}'
+    PrintDocumentTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+          -
+            AttributeName: ownerId
+            AttributeType: S
+          -
+            AttributeName: uploadDate
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          -
+            IndexName: ownerIndex
+            KeySchema:
+              -
+                AttributeName: ownerId
+                KeyType: HASH
+              -
+                AttributeName: uploadDate
+                KeyType: RANGE
+            Projection:
+                ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.documentTable}'
+        
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline

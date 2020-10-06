@@ -1,0 +1,129 @@
+service: printlele-user-account
+
+frameworkVersion: "v1"
+
+provider:
+  name: aws
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  runtime: nodejs6.10
+  environment:
+    userAccountTable: "${file(../config.${self:provider.stage}.json):env.userAccountTable}"
+    transactionTable: "${file(../config.${self:provider.stage}.json):env.transactionTable}"
+    topUpCodeTable: "${file(../config.${self:provider.stage}.json):env.topUpCodeTable}"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescibeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:*"
+custom:
+  accountId: "${file(../config.${self:provider.stage}.json):accountId}"
+  userPoolId: "${file(../config.${self:provider.stage}.json):userPoolId}"
+  authorizerArn: "arn:aws:cognito-idp:${self:provider.region}:${self:custom.accountId}:userpool/${self:custom.userPoolId}"
+
+functions:
+  createUserAccount:
+    handler: createUserAccount.createUserAccount
+    events:
+      - http:
+          path: user-account
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getUserAccount:
+    handler: getUserAccount.getUserAccount
+    events:
+      - http:
+          path: user-account
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  topUpAccount:
+    handler: topUpAccount.topUpAccount
+    events:
+      - http:
+          path: top-up-account
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  generateCodes:
+    environment:
+      codeGenPass: "${file(../config.${self:provider.stage}.json):env.codeGenPass}"
+    handler: generateCodes.generateCodes
+    events:
+      - http:
+          path: generate-codes
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+
+resources:
+  Resources:
+    UserAccountTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: userId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.userAccountTable}'
+    TransactionTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: userId
+            AttributeType: S
+          -
+            AttributeName: dateTime
+            AttributeType: N
+        KeySchema:
+          -
+            AttributeName: userId
+            KeyType: HASH
+          -
+            AttributeName: dateTime
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.transactionTable}'
+    TopUpCodeTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: code
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: code
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.topUpCodeTable}'
+        
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline

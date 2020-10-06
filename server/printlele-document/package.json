@@ -1,0 +1,29 @@
+{
+  "name": "printlele-document",
+  "version": "0.0.1",
+  "description": "Printlele: Document Microservice",
+  "main": "handler.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Prathamesh Jagtap",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/aws-lambda": "0.0.33",
+    "@types/aws-sdk": "^2.7.0",
+    "aws-sdk": "^2.209.0",
+    "serverless-offline": "^3.25.4",
+    "serverless-plugin-typescript": "^1.1.5"
+  },
+  "dependencies": {
+    "@types/file-type": "^5.2.1",
+    "@types/moment": "^2.13.0",
+    "@types/uuid": "^3.4.3",
+    "docx-pdf-pagecount": "0.0.3",
+    "file-type": "^7.6.0",
+    "moment": "^2.21.0",
+    "pdf2json": "^1.1.7",
+    "querystring": "^0.2.0",
+    "uuid": "^3.2.1"
+  }
+}

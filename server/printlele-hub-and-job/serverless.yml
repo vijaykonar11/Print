@@ -1,0 +1,321 @@
+service: printlele-hub-and-job
+
+frameworkVersion: "v1"
+
+provider:
+  name: aws
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  runtime: nodejs6.10
+  environment:
+    docBucket: "${file(../config.${self:provider.stage}.json):env.docBucket}"
+    documentTable: "${file(../config.${self:provider.stage}.json):env.documentTable}"
+    printHubTable: "${file(../config.${self:provider.stage}.json):env.printHubTable}"
+    printJobTable: "${file(../config.${self:provider.stage}.json):env.printJobTable}"
+    orderTable: "${file(../config.${self:provider.stage}.json):env.orderTable}"
+    printIndexTable: "${file(../config.${self:provider.stage}.json):env.printIndexTable}"
+    userAccountTable: "${file(../config.${self:provider.stage}.json):env.userAccountTable}"
+    transactionTable: "${file(../config.${self:provider.stage}.json):env.transactionTable}"
+    accountNo: "${self:custom.accountId}"
+    region: "${self:provider.region}"
+    googleOAuthTokenUrl: "${file(../config.${self:provider.stage}.json):env.googleOAuthTokenUrl}"
+    printJobSubmitUrl: "${file(../config.${self:provider.stage}.json):env.printJobSubmitUrl}"
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescibeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:*"
+    - Effect: "Allow"
+      Action: "s3:*"
+      Resource: "arn:aws:s3:::${self:provider.environment.docBucket}/*"
+    - Effect: "Allow"
+      Action: "sqs:*"
+      Resource: "arn:aws:sqs:${self:provider.region}:*:*"
+
+custom:
+  accountId: "${file(../config.${self:provider.stage}.json):accountId}"
+  userPoolId: "${file(../config.${self:provider.stage}.json):userPoolId}"
+  authorizerArn: "arn:aws:cognito-idp:${self:provider.region}:${self:custom.accountId}:userpool/${self:custom.userPoolId}"
+
+
+functions:
+  createPrintHub:
+    handler: createPrintHub.createPrintHub
+    events:
+      - http:
+          path: print-hub
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintHubs:
+    handler: getPrintHubs.getPrintHubs
+    events:
+      - http:
+          path: print-hubs
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintHubMe:
+    handler: getPrintHubMe.getPrintHubMe
+    events:
+      - http:
+          path: print-hub
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintHub:
+    handler: getPrintHub.getPrintHub
+    events:
+      - http:
+          path: print-hub/{id}
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  addPrinter:
+    handler: addPrinter.addPrinter
+    events:
+      - http:
+          path: print-hub/{id}/printers
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrinters:
+    handler: getPrinters.getPrinters
+    events:
+      - http:
+          path: print-hub/{id}/printers
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintJob:
+    handler: getPrintJob.getPrintJob
+    events:
+      - http:
+          path: print-jobs/{id}
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  addPrintJobStatus:
+    handler: addPrintJobStatus.addPrintJobStatus
+    events:
+      - http:
+          path: print-jobs/{id}/status
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getSignedDocumentURL:
+    handler: getSignedDocumentURL.getSignedDocumentURL
+    events:
+      - http: 
+          path: print-jobs/{id}/signed-document-url
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  createOrder:
+    handler: createOrder.createOrder
+    events:
+      - http:
+          path: orders
+          method: post
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  checkoutOrder:
+    handler: checkoutOrder.checkoutOrder
+    environment:
+      googleOAuthRefreshToken: "${file(../config.${self:provider.stage}.json):env.googleOAuthRefreshToken}"
+      googleOAuthClientId: "${file(../config.${self:provider.stage}.json):env.googleOAuthClientId}"
+      googleOAuthClientSecret: "${file(../config.${self:provider.stage}.json):env.googleOAuthClientSecret}"
+    events:
+      - http:
+          path: orders/{id}/checkout
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  orderList:
+    handler: orderList.orderList
+    events:
+      - http:
+          path: orders
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getOrder:
+    handler: getOrder.getOrder
+    events:
+      - http:
+          path: orders/{id}
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintHubByAlias:
+    handler: getPrintHubByAlias.getPrintHubByAlias
+    events:
+      - http: 
+          path: print-hub/by-alias/{type}/{alias}
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  getPrintHubStatusByAlias:
+    handler: getPrintHubStatusByAlias.getPrintHubStatusByAlias
+    environment:
+      googleOAuthRefreshToken: "${file(../config.${self:provider.stage}.json):env.googleOAuthRefreshToken}"
+      googleOAuthClientId: "${file(../config.${self:provider.stage}.json):env.googleOAuthClientId}"
+      googleOAuthClientSecret: "${file(../config.${self:provider.stage}.json):env.googleOAuthClientSecret}"
+      printerLookUpUrl: "${file(../config.${self:provider.stage}.json):env.printerLookUpUrl}"
+    events:
+      - http: 
+          path: print-hub/by-alias/{type}/{alias}/status
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+  transactionList:
+    handler: transactionList.transactionList
+    events:
+      - http: 
+          path: transactions
+          method: get
+          cors: true
+          authorizer:
+            arn: ${self:custom.authorizerArn}
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'POST,GET,OPTIONS'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+    PrinterHubTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+          -
+            AttributeName: ownerId
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: ownerId
+            KeyType: HASH
+          -
+            AttributeName: id
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.printHubTable}'
+    PrinterIndexTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: alias
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: alias
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.printIndexTable}'
+    PrintJobTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+          -
+            AttributeName: documentId
+            AttributeType: S
+          -
+            AttributeName: hubId
+            AttributeType: S
+          -
+            AttributeName: printerId
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+          -
+            AttributeName: documentId
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          -
+            IndexName: hubIndex
+            KeySchema:
+              -
+                AttributeName: hubId
+                KeyType: HASH
+              -
+                AttributeName: printerId
+                KeyType: RANGE
+            Projection:
+                ProjectionType: ALL
+            ProvisionedThroughput:
+              ReadCapacityUnits: 1
+              WriteCapacityUnits: 1
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.printJobTable}'
+    OrderTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: userId
+            AttributeType: S
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: userId
+            KeyType: HASH
+          -
+            AttributeName: id
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: '${self:provider.environment.orderTable}'
+        
+        
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
